@@ -76,7 +76,7 @@ def get_time_spent_on_issue(issue: Dict, worker_username: str) -> int:
             print(f"\033[91m    Issue:{issue['title']}  | time spent: {time_spent // 3600} hours {time_spent % 3600 // 60} minutes\033[0m")
             print(f"\033[91m    '-------> {issue['web_url']}\033[0m")
         else:
-            print(f"    Issue:{issue['title']}  | time spent: {time_spent // 3600} hours {time_spent % 3600 // 60} minutes")
+            print(f"url: {issue['web_url']} | Issue:{issue['title']}  | time spent: {time_spent // 3600} hours {time_spent % 3600 // 60} minutes")
     return time_spent
 
 
