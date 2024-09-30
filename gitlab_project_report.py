@@ -10,16 +10,31 @@ GITLAB_URL = os.environ.get("GITLAB_URL", "None")
 PERSONAL_ACCESS_TOKEN = os.environ.get("PERSONAL_ACCESS_TOKEN", "None")
 PROJECT_ID = os.getenv("PROJECT_ID").split(',')
 PROJECT_ID = [int(id) for id in PROJECT_ID]
-WORKER_USERNAME = os.environ.get("WORKER_USERNAME", "None")
+WORKER_USERNAMES = os.environ.get("WORKER_USERNAME", "None")
+print(f"WORKER_USERNAME: {WORKER_USERNAMES}")
+print(f"PROJECT_ID: {PROJECT_ID}")
+
+def get_user_id(username: str) -> Dict:
+    users_url = f"{GITLAB_URL}/api/v4/users"
+    params = {
+        'username': username,
+        'per_page': 1000,
+    }
+    headers = {'Private-Token': PERSONAL_ACCESS_TOKEN}
+    response = requests.get(users_url,params=params, headers=headers)
+    response.raise_for_status()
+    user = response.json()
+    return {'id': user[0]['id'], 'name': user[0]['name']}
 
 def get_issues(project_id: str, start_date: str, end_date: str) -> List[Dict]:
     issues_url = f"{GITLAB_URL}/api/v4/projects/{project_id}/issues"
     headers = {'Private-Token': PERSONAL_ACCESS_TOKEN}
+    user_list = [get_user_id(user) for user in WORKER_USERNAMES.split(',')]
     params = {
         'updated_after': start_date,
         'updated_before': end_date,
-        'per_page': 100,
-        'assignee_username': WORKER_USERNAME,
+        'per_page': 1000,
+        'assignee_ids': [user['id'] for user in user_list],
     }
     
     issues = []
@@ -37,11 +52,12 @@ def get_issues(project_id: str, start_date: str, end_date: str) -> List[Dict]:
     return issues
 
 def get_time_spent_on_issue(issue: Dict, worker_username: str) -> int:
-    notes_url = f"{GITLAB_URL}/api/v4/projects/{issue['project_id']}/issues/{issue['iid']}/notes"
+    notes_url = f"{GITLAB_URL}/api/v4/projects/{issue['project_id']}/issues/{issue['iid']}/notes?per_page=1000"
     headers = {'Private-Token': PERSONAL_ACCESS_TOKEN}
     response = requests.get(notes_url, headers=headers)
     response.raise_for_status()
-    
+    with open('notes.json', 'a') as f:
+        f.write(response.text + '\n')
     notes = response.json()
     time_spent = 0
     is_note_from_curr_month = False
@@ -122,14 +138,17 @@ if __name__ == '__main__':
     year = int(sys.argv[1])
     month = int(sys.argv[2])
     business_days = int(sys.argv[3])
-    
+    # year = 2024
+    # month = 8
+    # business_days = 21
     # IMPORTANT Change for the correct business days | 8 hours per day
     GOAL=business_days*8
+    primary_user = WORKER_USERNAMES.split(",")[0]
     # IMPORTANT Change for the correct business days
-    total_time_spent = get_worker_time_spent_in_month(PROJECT_ID, WORKER_USERNAME, year, month)
+    total_time_spent = get_worker_time_spent_in_month(PROJECT_ID, primary_user, year, month)
     hours_spent = total_time_spent // 3600
     print("-------------------------------------------------")
-    print(f"Total time spent by {WORKER_USERNAME} on all tickets in {year}-{month}: {total_time_spent // 3600} hours {total_time_spent % 3600 // 60} minutes")
+    print(f"Total time spent by {primary_user} on all tickets in {year}-{month}: {total_time_spent // 3600} hours {total_time_spent % 3600 // 60} minutes")
     ratio = f"{(hours_spent/GOAL) * 100:.2f}%"
     print(f"Ratio: {ratio}")
     print("-------------------------------------------------")
